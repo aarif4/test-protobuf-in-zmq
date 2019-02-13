@@ -54,3 +54,7 @@ So an example script you should run to get this thing running is:
 ```
 ./run_pubsub 127.0.0.1:50001 test
 ```
+
+# Notes
+
+There are some protobuf declarations in the main CMakeLists.txt. It assumes that you're running a vagrant box and thus did a local build to /vagrant/install. **If your local build is built somewhere else**, then point those variables somewhere else. **If you did a global build**, then remove those three variables (PROTOBUF_LIBRARY PROTOBUF_INCLUDE_DIR PROTOBUF_PROTOC_EXECUTABLE) from your CMakeLists.txt
