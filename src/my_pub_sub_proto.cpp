@@ -1,61 +1,51 @@
+#include <string>
 #include <thread>
-#include <time.h>
-#include <sstream>
 #include <stdio.h>
 #include <zmq.hpp>
+#include <istream>
 #include <iostream>
-#include <stdlib.h>
 #include <unistd.h>
-
-#include <iostream>
-#include <fstream>
-#include <string>
 #include "addressbook.pb.h"
 
-#include <unistd.h>
-#include <zmq.hpp>
-#include <iostream>
-#include <streambuf>
-#include <string>
-#include <istream>
-#include <sstream>
 
-//TODO: So this ZMQ socket isn't working...maybe try writing it to a file and reading it to make sure that it is readable? Then if that's OK, then it's most likely the conversion from message_t to istringstream that is the problem
+
+
 
 using namespace std;
 // Iterates though all people in the AddressBook and prints info about them.
-void ListPeople(const tutorial::AddressBook& address_book) {
-  for (int i = 0; i < address_book.people_size(); i++) {
-    const tutorial::Person& person = address_book.people(i);
+void ListPeople(const tutorial::AddressBook& address_book) 
+{
+	for (int i = 0; i < address_book.people_size(); i++) 
+	{
+		const tutorial::Person& person = address_book.people(i);
 
-    cout << "Person ID: " << person.id() << endl;
-    cout << "  Name: " << person.name() << endl;
-    if (person.has_email()) {
-      cout << "  E-mail address: " << person.email() << endl;
-    }
+		std::cout << "Person ID: " << person.id() << std::endl;
+		std::cout << "  Name: " << person.name() << std::endl;
+		if (person.has_email()) 
+		{
+			std::cout << "  E-mail address: " << person.email() << std::endl;
+		}
 
-    for (int j = 0; j < person.phones_size(); j++) {
-      const tutorial::Person::PhoneNumber& phone_number = person.phones(j);
+		for (int j = 0; j < person.phones_size(); j++) 
+		{
+			const tutorial::Person::PhoneNumber& phone_number = person.phones(j);
 
-      switch (phone_number.type()) {
-        case tutorial::Person::MOBILE:
-          cout << "  Mobile phone #: ";
-          break;
-        case tutorial::Person::HOME:
-          cout << "  Home phone #: ";
-          break;
-        case tutorial::Person::WORK:
-          cout << "  Work phone #: ";
-          break;
-      }
-      cout << phone_number.number() << endl;
-    }
-  }
+			switch (phone_number.type()) 
+			{
+				case tutorial::Person::MOBILE:
+					std::cout << "  Mobile phone #: ";
+					break;
+				case tutorial::Person::HOME:
+					std::cout << "  Home phone #: ";
+					break;
+				case tutorial::Person::WORK:
+					std::cout << "  Work phone #: ";
+					break;
+			}
+			std::cout << phone_number.number() << std::endl << std::endl;
+		}
+	}
 }
-
-// Make function definition to get random value that's b/w [0,num)
-#define within(num) (int) ((float) num * random () / (RAND_MAX + 1.0))
-
 
 
 
@@ -84,31 +74,25 @@ void runPub(std::string ipAddr, std::string filter)
 
   
   //::::::::::::::::::::::::::::::::::::::::::::::::::::::::::://
-  // Generate and publish random weather messages
+  // Generate and publish AddressBook Protobuf messages
   //::::::::::::::::::::::::::::::::::::::::::::::::::::::::::://
 //{
     // Initialize random number generator
-    srandom((unsigned) time (NULL));
-    int update_nbr = 0;
-    long total_temp = 0; 
 	GOOGLE_PROTOBUF_VERIFY_VERSION;
-
 	tutorial::AddressBook address_book;
 	tutorial::Person* new_person = address_book.add_people();
-	   
-	*new_person->mutable_name() = "Matt";
-	new_person->set_email(std::string("matt@email.com"));
-	tutorial::Person::PhoneNumber* phone_number = new_person->add_phones();
 	
+	*new_person->mutable_name() = "Jane Doe";
+	new_person->set_email(std::string("jane.doe@email.com"));
+	tutorial::Person::PhoneNumber* phone_number = new_person->add_phones();
 	phone_number->set_type(tutorial::Person::MOBILE);
-    while (++update_nbr > 0) // loop indefinitely
-    { /* Forever generate random weather stuff and send it */
-		//zmq::message_t message;
-		//std::string str("this is a test message\0");
-		//message.rebuild(str.size());
-		//memcpy((void *) message.data(), (void *) str.c_str(), str.size());
-		new_person->set_id(update_nbr);
-		phone_number->set_number(std::string("1234567889") + std::to_string(update_nbr));
+	phone_number->set_number(std::string("(123) 456-7889"));
+
+	int cnt = 0;
+    while (++cnt > 0) // loop indefinitely
+    { /* Forever increment ID number and send it */
+		new_person->set_id(cnt);
+		
 		// Periodically send the message out via ZMQ PUB
 		zmq::message_t message(address_book.ByteSizeLong());
 		address_book.SerializeToArray(message.data(), address_book.ByteSizeLong()); 
@@ -129,17 +113,15 @@ void runPub(std::string ipAddr, std::string filter)
             // Send the filter via socket
             publisher.send(filt_msg, ZMQ_SNDMORE);
         }
-        // Send the message via socket
-		//printf("\tSending %d/%d bytes of data\n", (int) message.size(), (int) address_book.ByteSizeLong());
-        publisher.send(message);
-		//printf("\tSent %d bytes of data\n", (int) message.size());
-        // 4. Inform the user message's contents and sleep for 2 seconds
-        //printf("runPub(): Sent message #%d: \"%s\"\n", update_nbr, 
-        //                                                (char *)message.data());
 		
+        // Send the message via socket
+        publisher.send(message);
+        
+		// 4. Sleep for 2 seconds before sending the next message
         usleep(2000000);
     }
 //}
+
 }
 
 
@@ -157,8 +139,15 @@ void runSub(std::string ipAddr, std::string filter)
     zmq::context_t context(1);
     zmq::socket_t subscriber(context, ZMQ_SUB);
     subscriber.connect(ipAddr.c_str());
-    subscriber.setsockopt(ZMQ_SUBSCRIBE, filter.c_str(), sizeof(char));
-
+	if (filter.size())
+	{
+		subscriber.setsockopt(ZMQ_SUBSCRIBE, filter.c_str(), sizeof(char));
+	}
+	else
+	{
+		subscriber.setsockopt(ZMQ_SUBSCRIBE, "", 0);
+	}
+	
     // Let the user know
     printf("runSub(): Conencting ZMQ SUB to \"%s\" with filter \"%s\"\n", 
                                                 ipAddr.c_str(), filter.c_str());
@@ -166,70 +155,46 @@ void runSub(std::string ipAddr, std::string filter)
 //}
 
 
-	zmq::message_t simple_msg; int sz = 0;
-	{
-		static tutorial::AddressBook address_book1;
-		static tutorial::Person* new_person = address_book1.add_people();
-		new_person->set_id(0);   
-		*new_person->mutable_name() = "Matt";
-		new_person->set_email(std::string("matt@email.com"));
 
-		tutorial::Person::PhoneNumber* phone_number = new_person->add_phones();
-		phone_number->set_number(std::string("1234567889") + std::to_string(0));
-		phone_number->set_type(tutorial::Person::MOBILE);
-		
-		simple_msg.rebuild(address_book1.ByteSizeLong());
-		sz = address_book1.ByteSizeLong();
-		address_book1.SerializeToArray(simple_msg.data(), address_book1.ByteSizeLong());
-		FILE* fp = fopen("./a.out","wb");
-		fwrite(simple_msg.data(), sizeof(char), address_book1.ByteSizeLong(), fp);
-		fclose(fp);
-		
-		// Write the new address book back to disk.
-		fstream output("./b.out", ios::out | ios::trunc | ios::binary);
-		if (!address_book1.SerializeToOstream(&output)) {
-		  cerr << "Failed to write address book." << endl;
-		  return;
-		}
-	}
     //::::::::::::::::::::::::::::::::::::::::::::::::::::::::::://
-    // Receive and translate messages
+    // Receive and translate serialized protobuf messages
     //::::::::::::::::::::::::::::::::::::::::::::::::::::::::::://
+//{
 	GOOGLE_PROTOBUF_VERIFY_VERSION;
-	int update_nbr = 0;
 	tutorial::AddressBook address_book;
-    while (++update_nbr > 0)
+	
+	int cnt = 0;
+    while (++cnt > 0)
     {
         // 1. Block until you receive a message
-        zmq::message_t update;
-        subscriber.recv(&update);
+        zmq::message_t message;
+        subscriber.recv(&message);
 
-        // 2. Check to see if you got the right message by verifying filter
-        std::string rcvd_filter((char *)update.data());
-        if (strcmp(rcvd_filter.c_str(), filter.c_str()) == 0)
-        {
-            // 3. Block until you receive desired message
-            subscriber.recv(&update);
-
-            // 4. Parse the message that was received 
-			printf("\tRec'd %d bytes of data\n", (int) update.size());
-			//printf("runSub(): Got message  #%d: \"%s\"\n", update_nbr, 
-			//									(char *) update.data()); 
-													
-			//std::istringstream iss(static_cast<char *> (update.data()));
-			//std::istringstream iss(static_cast<char *> (simple_msg.data()));
-			fstream iss("./a.out", ios::in | ios::binary);
-			if (!address_book.ParseFromArray(update.data(), update.size())) 
+		// 2. Check to see if you got the right message by verifying filter
+		if (filter.size())
+		{ /* If there is a filter, then see if it's the one that we want */
+			std::string rcvd_filter((char *)message.data());
+			if (strcmp(rcvd_filter.c_str(), filter.c_str()) == 0)
 			{
-			  std::cerr << "Failed to parse address book. Retrying" << std::endl;
-			  continue;
+				// 3. Block until you receive desired message
+				subscriber.recv(&message);
 			}
-			ListPeople(address_book);
 		}
+		
+		// 4. Parse the message that was received 
+		if (!address_book.ParseFromArray(message.data(), message.size())) 
+		{
+			std::cerr << "Failed to parse message. Skipping..." << std::endl;
+			continue;
+		}
+		ListPeople(address_book);
+		
 
-        // 6. Sleep for 0.5 sec
+        // 5. Sleep for 0.5 sec
         usleep(500000);
     }
+//}
+
 }
 
 
@@ -242,46 +207,82 @@ int main(int argc, char *argv[])
     //:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::://
     // Validate that executable was called with the right number of args
     //:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::://
-    if (argc != 3)
-    { /* If the user hasn't provided the right no. of args, let the user know */
-        printf("ERROR: Not the right number of arguments!\n");
-        printf("pubSubTest [ipAddr] [filter]\n");
-        printf("\t[ipAddr] -> IP+Port to be used at publisher & subscriber\n");
-        printf("\t[filter] -> ZMQ Filter to be used during communication\n\n");
-        printf("\t\texample: pubSubTest 127.0.0.1:50000 abcdef\n\n\n");
-        fflush(stdout); // Flush the contents of stdout buffer
+//{
+	// We're currently "assuming" that our user is giving us "correct" values
+	std::string ipAddr("tcp://127.0.0.1:50011");
+	std::string filter("");
 
-        return 1;
-    }
+	bool CAUGHT_ERROR = false;
+	switch (argc)
+	{
+		case 1:
+		{
+			// Use default values
+			break;
+		}
+		case 2:
+		{
+			ipAddr = "tcp://" + std::string(argv[1]);
+			break;
+		}
+		case 3:
+		{
+			ipAddr = "tcp://" + std::string(argv[1]);
+			filter = std::string(argv[2]);
+			break;
+		}
+		default:
+		{
+			printf("ERROR: Wrong number of input arguments!\n");
+			printf("./pbuff_zmq [ipAddr] [filter]\n");
+			printf("\t[ipAddr] -> IP Address (DEFAULT 127.0.0.1:50011)\n");
+			printf("\t[filter] -> ZMQ Filter (DEFAULT none)\n\n");
+			printf("\t\tExample: ./pbuff_zmq 127.0.0.1:50011 filt_str\n\n\n");
+			fflush(stdout); // Flush the contents of stdout buffer
+			
+			CAUGHT_ERROR = true;
+			
+			break;
+		}
+	}
+	
+	if (CAUGHT_ERROR)
+		return 1;
+//}
+
 
 
     //:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::://
     // Let user know ZMQ version running on their system
     //:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::://
+//{
     int major, minor, patch;
     zmq_version (&major, &minor, &patch);
     printf("Current ZMQ version is %d.%d.%d\n\n", major, minor, patch); 
-  
-    
+//}  
+
+
+ 
     //:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::://
     // Run the Publisher's Thread and Subscriber's Thread using inputted args
     //:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::://
-    // We're currently "assuming" that our user is giving us "correct" values
-    std::string filter (argv[2]);
-    std::string ipAddr (argv[1]); ipAddr = "tcp://" + ipAddr;
+//{
     std::thread pub_thread(runPub, ipAddr, filter);
     std::thread sub_thread(runSub, ipAddr, filter);
+//}
+
 
 
     //:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::://
     // Run the Publisher's Thread and Subscriber's Thread using inputted args
     //:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::://
+//{
     pub_thread.join();
     sub_thread.join();
+//}
 
 
     return 0;
-
 
 }
 
@@ -292,3 +293,5 @@ int main(int argc, char *argv[])
 //:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::://
 // TODO: Validate input arguments
 // TODO: Handle keyboard interrupt in runPub() and runSub()
+// TODO: Why is it that zmq::message_t must be give a size of .size()+1?
+//       Without that, the string/filter will be missing its last character
