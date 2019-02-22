@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+package tutorial;
+
+message person {
+  required string name = 1;
+  required double id = 2;
+  required double id2 = 3;
+  required double id3 = 4;
+}
+
+
